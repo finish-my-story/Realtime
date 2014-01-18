@@ -6,6 +6,7 @@ exports.engine = mustacheExpress();
 exports.views =  __dirname + '/views';
 exports.publicPath = path.join(__dirname, 'public');
 
+// Mas users must be greater than 1.
 exports.maxUsersPerStory = 2;
 exports.maxWordsPerTurn = 4;
-exports.storyLifetime = 1000*60*10;
+exports.storyLifetime = 1000*20;//1000*60*10;
