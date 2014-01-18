@@ -1,20 +1,18 @@
 var express = require('express')
-	, http = require('http')
 	, app = express()
-	, server = http.createServer(app)
+	, server = require('http').createServer(app)
 	, io = require('socket.io').listen(server)
 	, routes = require('./routes')
-	, mustacheExpress = require('mustache-express')
-	, path = require('path');
+	, config = require('./config');
 
 app.configure(function () {
-	app.set('port', process.env.VMC_APP_PORT || 1337);
+	app.set('port', config.port);
 	app.use(app.router);
 
-	app.engine('mustache', mustacheExpress());
-	app.set('views', __dirname + '/views');
+	app.engine('mustache', config.engine);
+	app.set('views', config.views);
 	app.set('view engine', 'mustache');
-	app.use(express.static(path.join(__dirname, 'public')));
+	app.use(express.static(config.publicPath));
 });
 
 app.get('/', routes.index);
@@ -24,9 +22,6 @@ server.listen(app.get('port'), function() {
   console.log("Express server listening on port " + app.get('port'));
 });
 
-
-var MAX_USERS_PER_STORY = 10;
-var STORY_LIFETIME = 1000*60*10;
 var queuedStory = null;
 var stories = [];
 
@@ -65,7 +60,7 @@ io.sockets.on('connection', function(socket) {
 	socket.set('userId', queuedStory.users);
 
 	// Is the room filled?
-	if(queuedStory.users == MAX_USERS_PER_STORY) {
+	if(queuedStory.users == config.maxUsersPerStory) {
 		// Start the game and move the story from the queued story
 		// to the activyt stories array.
 		socket.broadcast.to(queuedStory.room).emit('game start');
@@ -74,14 +69,14 @@ io.sockets.on('connection', function(socket) {
 		queuedStory = null;
 
 		// Set a timer to close the room.
-		setTimeout(closeStory, STORY_LIFETIME);
+		setTimeout(closeStory, config.storyLifetime);
 	}
 
 	// Notify the user of the game's current configuration.
 	socket.emit('setup', {
 		userId: queuedStory.users,
-		maxUsers: MAX_USERS_PER_STORY,
-		storyLifetime: STORY_LIFETIME,
+		maxUsers: config.maxUsersPerStory,
+		storyLifetime: config.storyLifetime,
 	});
 
 	// Register the handler for when the user writes some words.
@@ -97,7 +92,7 @@ io.sockets.on('connection', function(socket) {
 					if(story.currentUserId == userId) {
 						story.currentUserId++;
 
-						if(story.currentUserId == MAX_USERS_PER_STORY) {
+						if(story.currentUserId == config.maxUsersPerStory) {
 							story.currentUserId = 0;
 						}
 
