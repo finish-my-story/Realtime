@@ -1,1 +1,30 @@
-Hello {{key}}
+<html>
+<head>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  var socket = io.connect('http://localhost');
+
+  socket.on('setup', function (data) {
+    console.log(data);
+  });
+
+  socket.on('user joined', function (data) {
+  	console.log('User joined');
+  });
+
+  socket.on('wrote', function(data) {
+  	console.log(data);
+  });
+
+  socket.on('time over', function() {
+  	console.log('Closed!');
+  });
+
+  function write(text) {
+  	socket.emit('write', {words: text});
+  }
+</script>
+</head>
+<body>
+</body>
+</html>

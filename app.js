@@ -25,16 +25,6 @@ server.listen(app.get('port'), function() {
 var queuedStory = null;
 var stories = [];
 
-function closeStory() {
-	if(stories.length > 0) {
-		var story = stories.shift();
-
-		sockets.broadcast.to(story.room).emit("done");
-
-		story.closed = true;
-	}
-}
-
 io.sockets.on('connection', function(socket) {
 	// If there are no empty rooms, create one.
 	if (queuedStory == null) {
@@ -54,10 +44,19 @@ io.sockets.on('connection', function(socket) {
 	}
 
 	// Make the current user join the room and assign an id to
-	// the suer.
+	// the user.
 	socket.join(queuedStory.room);
 	socket.set('room', queuedStory.room);
 	socket.set('userId', queuedStory.users);
+
+	socket.broadcast.to(queuedStory.room).emit('user joined');
+
+	// Notify the user of the game's current configuration.
+	socket.emit('setup', {
+		userId: queuedStory.users,
+		maxUsers: config.maxUsersPerStory,
+		storyLifetime: config.storyLifetime,
+	});
 
 	// Is the room filled?
 	if(queuedStory.users == config.maxUsersPerStory) {
@@ -69,15 +68,21 @@ io.sockets.on('connection', function(socket) {
 		queuedStory = null;
 
 		// Set a timer to close the room.
-		setTimeout(closeStory, config.storyLifetime);
-	}
+		setTimeout(function() {
+			var smallestId;
+			var oldestStory = null;
 
-	// Notify the user of the game's current configuration.
-	socket.emit('setup', {
-		userId: queuedStory.users,
-		maxUsers: config.maxUsersPerStory,
-		storyLifetime: config.storyLifetime,
-	});
+			for(var key in stories) {
+				if(oldestStory == null || stories[key].id < smallestId) {
+					oldestStory = stories[key];
+					smallestId = oldestStory.id;
+				}
+			}
+
+			oldestStory.closed = true;
+			io.sockets.to(oldestStory.room).emit("time over");
+		}, config.storyLifetime);
+	}
 
 	// Register the handler for when the user writes some words.
 	socket.on('write', function(data) {
@@ -86,14 +91,14 @@ io.sockets.on('connection', function(socket) {
 			var story = stories[room];
 
 			// Make sure the story is still active.
-			if(story.closed == false) {
+			if(story != undefined && story.closed == false) {
 				socket.get('userId', function(error, userId) {
 					// Make sure the user is allowed to post words.
 					if(story.currentUserId == userId) {
 						story.currentUserId++;
 
-						if(story.currentUserId == config.maxUsersPerStory) {
-							story.currentUserId = 0;
+						if(story.currentUserId > config.maxUsersPerStory) {
+							story.currentUserId = 1;
 						}
 
 						socket.broadcast.to(room).emit('wrote', {
