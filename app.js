@@ -46,6 +46,13 @@ app.configure(function () {
 
 app.get('/', routes.index);
 app.get('/game', routes.game);
+app.get('/leaderboard', function(request, response) {
+	connection.query("SELECT LEFT(text, 40) AS title, (up_votes - down_votes) AS score, ((up_votes + 1.9208) / (up_votes + down_votes) - 1.96 * SQRT((up_votes * down_votes) / (up_votes + down_votes) + 0.9604) / (up_votes + down_votes)) / (1 + 3.8416 / (up_votes + down_votes))  AS ci_lower_bound FROM stories WHERE active = '0' ORDER BY ci_lower_bound DESC LIMIT 50", function(error, rows) {
+		response.render('leaderboard', {stories: rows});
+
+		console.log({stories: rows});
+    });
+});
 
 server.listen(app.get('port'), function() {
   console.log("Express server listening on port " + app.get('port'));
@@ -91,7 +98,7 @@ function joinStory(callback) {
 
 		connection.query('INSERT INTO stories SET ?', {
 			active: 1,
-			up_votes: 0,
+			up_votes: 1,
 			down_votes: 0,
 		}, function(error, result) {
 			queuedStory.id = result.insertId;
