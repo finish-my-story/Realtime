@@ -24,14 +24,16 @@ server.listen(app.get('port'), function() {
 
 var queuedStory = null;
 var stories = [];
+var storiesCount = 0;
 
 io.sockets.on('connection', function(socket) {
 	// If there are no empty rooms, create one.
 	if (queuedStory == null) {
 		queuedStory = {
-			id: stories.length,
-			room: 'story-' + stories.length,
+			id: storiesCount,
+			room: 'story-' + storiesCount,
 			users: 1,
+			words: 'Start of story',
 			currentUserId: 1,
 			closed: false,
 		};
@@ -45,6 +47,7 @@ io.sockets.on('connection', function(socket) {
 
 	// Make the current user join the room and assign an id to
 	// the user.
+	console.log(queuedStory.room);
 	socket.join(queuedStory.room);
 	socket.set('room', queuedStory.room);
 	socket.set('userId', queuedStory.users);
@@ -54,6 +57,8 @@ io.sockets.on('connection', function(socket) {
 	// Notify the user of the game's current configuration.
 	socket.emit('setup', {
 		userId: queuedStory.users,
+		words: queuedStory.words,
+		maxWordsPerTurn: config.maxWordsPerTurn,
 		maxUsers: config.maxUsersPerStory,
 		storyLifetime: config.storyLifetime,
 	});
@@ -62,10 +67,11 @@ io.sockets.on('connection', function(socket) {
 	if(queuedStory.users == config.maxUsersPerStory) {
 		// Start the game and move the story from the queued story
 		// to the activyt stories array.
-		socket.broadcast.to(queuedStory.room).emit('game start');
+		io.sockets.to(queuedStory.room).emit('game start');
 
 		stories[queuedStory.room] = queuedStory;
 		queuedStory = null;
+		storiesCount++;
 
 		// Set a timer to close the room.
 		setTimeout(function() {
@@ -79,8 +85,9 @@ io.sockets.on('connection', function(socket) {
 				}
 			}
 
+			storiesCount--;
 			oldestStory.closed = true;
-			io.sockets.to(oldestStory.room).emit("time over");
+			io.sockets.to(oldestStory.room).emit('time over');
 		}, config.storyLifetime);
 	}
 
@@ -95,16 +102,22 @@ io.sockets.on('connection', function(socket) {
 				socket.get('userId', function(error, userId) {
 					// Make sure the user is allowed to post words.
 					if(story.currentUserId == userId) {
-						story.currentUserId++;
+						var input = data.words.trim();
 
-						if(story.currentUserId > config.maxUsersPerStory) {
-							story.currentUserId = 1;
+						if(input.split(" ").length <= config.maxWordsPerTurn) {
+							story.words += ' ' + input;
+
+							story.currentUserId++;
+
+							if(story.currentUserId > config.maxUsersPerStory) {
+								story.currentUserId = 1;
+							}
+
+							socket.broadcast.to(room).emit('wrote', {
+								words: input,
+								nextUserId: story.currentUserId,
+							});
 						}
-
-						socket.broadcast.to(room).emit('wrote', {
-							words: data.words,
-							nextUserId: story.currentUserId,
-						});
 					}
 				});
 			}

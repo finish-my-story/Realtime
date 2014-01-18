@@ -7,4 +7,5 @@ exports.views =  __dirname + '/views';
 exports.publicPath = path.join(__dirname, 'public');
 
 exports.maxUsersPerStory = 2;
-exports.storyLifetime = 10000;
+exports.maxWordsPerTurn = 4;
+exports.storyLifetime = 1000*60*10;
